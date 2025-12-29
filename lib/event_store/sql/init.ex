@@ -11,7 +11,9 @@ defmodule EventStore.Sql.Init do
       ~s(SET LOCAL search_path TO "#{schema}";),
       create_streams_table(),
       create_stream_uuid_index(),
+      create_events_root_table(),
       create_events_table(column_data_type),
+      create_events_indexes(column_data_type)
       create_stream_events_table(),
       create_stream_events_index(),
       create_event_store_exception_function(),
