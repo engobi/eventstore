@@ -58,19 +58,48 @@ defmodule EventStore.Sql.Init do
     """
   end
 
-  defp create_events_table(column_data_type) do
+  # Create `events_root` table
+  defp create_events_root_table do
     """
-    CREATE TABLE events
+    CREATE TABLE events_root
     (
-        event_id uuid PRIMARY KEY NOT NULL,
-        event_type text NOT NULL,
-        causation_id uuid NULL,
-        correlation_id uuid NULL,
-        data #{column_data_type} NOT NULL,
-        metadata #{column_data_type} NULL,
-        created_at timestamp with time zone DEFAULT NOW() NOT NULL
+        event_id uuid PRIMARY KEY NOT NULL
     );
     """
+  end
+
+  # Create `events` parent table
+  defp create_events_table(column_data_type) do
+    """
+    CREATE TABLE events (
+        event_id UUID NOT NULL,
+        event_type TEXT NOT NULL,
+        causation_id UUID NULL,
+        correlation_id UUID NULL,
+        "data" #{column_data_type} NOT NULL,
+        metadata #{column_data_type} NULL,
+        created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+        CONSTRAINT event_store_events_pkey PRIMARY KEY (event_id, created_at),
+        CONSTRAINT event_store_events_root_fk
+            FOREIGN KEY (event_id)
+            REFERENCES events_root (event_id)
+    ) PARTITION BY RANGE (created_at);
+    """
+  end
+
+  # Create `events` indexes
+  defp create_events_indexes(column_data_type) do
+    idx_query = """
+      CREATE INDEX event_store_events_created_at_idx ON events(created_at);
+      CREATE INDEX event_store_events_event_type_idx ON events(event_type, created_at);
+    """
+
+    # Adding an index if data is a jsonb 
+    if String.downcase(column_data_type) == "jsonb" do
+      idx_query <> """CREATE INDEX ON events USING GIN ("data" jsonb_path_ops);"""
+    else
+      idx_query
+    end
   end
 
   defp create_event_store_exception_function do
@@ -115,6 +144,11 @@ defmodule EventStore.Sql.Init do
   # prevent updates to `events` table
   defp prevent_event_update do
     """
+    CREATE TRIGGER no_update_events_root
+    BEFORE UPDATE ON events_root
+    FOR EACH STATEMENT
+    EXECUTE PROCEDURE event_store_exception('Cannot update events_root');
+
     CREATE TRIGGER no_update_events
     BEFORE UPDATE ON events
     FOR EACH STATEMENT
@@ -129,6 +163,11 @@ defmodule EventStore.Sql.Init do
     BEFORE DELETE ON events
     FOR EACH STATEMENT
     EXECUTE PROCEDURE event_store_delete('Cannot delete events');
+
+    CREATE TRIGGER no_delete_events_root
+    BEFORE DELETE ON events_root
+    FOR EACH STATEMENT
+    EXECUTE PROCEDURE event_store_delete('Cannot delete events_root');
     """
   end
 
