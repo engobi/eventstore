@@ -3,32 +3,37 @@ defmodule EventStore.Sql.Init do
 
   # PostgreSQL statements to intialize an event store schema.
 
-  def create_partitioned_or_normal_events_table(partitioned, column_data_type) do
+  def create_partitioned_or_not_events_table(partitioned, column_data_type) do
     if partitioned do
-      create_events_root_table()
       create_partitioned_events_table(column_data_type)
     else
       create_events_table(column_data_type)
+    end
   end
 
   def statements(config) do
     column_data_type = Keyword.fetch!(config, :column_data_type)
-    schema = Keyword.fetch!(config, :schema)
-    partitioned = Keyword.fetch!(config, :partitioned_events, false)
+    schema = Keyword.fetch!(config, :schema) || 'eventi_store'
+    partitioned = Keyword.fetch!(config, :partitioned_events) || false
 
     [
       ~s(SET LOCAL search_path TO "#{schema}";),
       create_streams_table(),
       create_stream_uuid_index(),
-      create_partitioned_or_normal_events_table(partitioned, column_data_type),
-      create_events_indexes(column_data_type)
-      create_stream_events_table(),
+      create_events_root_table(partitioned),
+      create_partitioned_or_not_events_table(partitioned, column_data_type),
+      create_events_index_1(),
+      create_events_index_2(),
+      create_events_index_3(column_data_type),
+      create_stream_events_table(partitioned),
       create_stream_events_index(),
       create_event_store_exception_function(),
       create_event_store_delete_function(),
       prevent_streams_delete(),
-      prevent_event_delete(partitioned),
-      prevent_event_update(partitioned),
+      prevent_event_delete(),
+      prevent_event_root_delete(partitioned),
+      prevent_event_update(),
+      prevent_event_root_update(partitioned),
       prevent_stream_events_delete(),
       prevent_stream_events_update(),
       create_notify_events_function(),
@@ -69,13 +74,17 @@ defmodule EventStore.Sql.Init do
   end
 
   # Create `events_root` table
-  defp create_events_root_table do
-    """
-    CREATE TABLE events_root
-    (
-        event_id uuid PRIMARY KEY NOT NULL
-    );
-    """
+  defp create_events_root_table(partitioned) do
+    if partitioned do
+      """
+      CREATE TABLE events_root
+      (
+          event_id uuid PRIMARY KEY NOT NULL
+      );
+      """
+    else
+      ""
+    end
   end
 
   # Create partitioned `events` parent table
@@ -114,17 +123,26 @@ defmodule EventStore.Sql.Init do
   end
 
   # Create `events` indexes
-  defp create_events_indexes(column_data_type) do
-    idx_query = """
+  defp create_events_index_1 do
+    """
       CREATE INDEX event_store_events_created_at_idx ON events(created_at);
+    """
+  end
+
+  defp create_events_index_2 do
+    """
       CREATE INDEX event_store_events_event_type_idx ON events(event_type, created_at);
     """
+  end
 
-    # Adding an index if data is a jsonb 
+  defp create_events_index_3(column_data_type) do
+    # Adding an index if data is a jsonb
     if String.downcase(column_data_type) == "jsonb" do
-      idx_query <> "CREATE INDEX ON events USING GIN (\"data\" jsonb_path_ops);"
+      """
+        CREATE INDEX ON events USING GIN ("data" jsonb_path_ops);
+      """
     else
-      idx_query
+      "SELECT 1;"
     end
   end
 
@@ -168,14 +186,17 @@ defmodule EventStore.Sql.Init do
   end
 
   # prevent updates to `events` table
-  defp prevent_event_update(partitioned) do
-    events_trigger = """
+  defp prevent_event_update() do
+    """
       CREATE TRIGGER no_update_events
       BEFORE UPDATE ON events
       FOR EACH STATEMENT
       EXECUTE PROCEDURE event_store_exception('Cannot update events');
     """
-    events_root_trigger =
+  end
+
+  # prevent updates to `events_root` table
+  defp prevent_event_root_update(partitioned) do
     if partitioned do
       """
         CREATE TRIGGER no_update_events_root
@@ -184,22 +205,23 @@ defmodule EventStore.Sql.Init do
         EXECUTE PROCEDURE event_store_exception('Cannot update events_root');
       """
     else
-      ""
+      "SELECT 1;"
     end
-
-    events_root_trigger <> events_trigger
   end
 
   # prevent deletion from `events` table
-  defp prevent_event_delete(partitioned) do
-    events_trigger = """
+  defp prevent_event_delete() do
+    """
       CREATE TRIGGER no_delete_events
       BEFORE DELETE ON events
       FOR EACH STATEMENT
       EXECUTE PROCEDURE event_store_delete('Cannot delete events');
     """
+  end
 
-    events_root_trigger =
+
+  # prevent deletion from `events_root` table
+  defp prevent_event_root_delete(partitioned) do
     if partitioned do
       """
         CREATE TRIGGER no_delete_events_root
@@ -208,17 +230,21 @@ defmodule EventStore.Sql.Init do
         EXECUTE PROCEDURE event_store_delete('Cannot delete events_root');
       """
     else
-      ""
+      "SELECT 1;"
     end
-
-    events_root_trigger <> events_trigger
   end
 
-  defp create_stream_events_table do
+  defp create_stream_events_table(partitioned) do
+    events_table =
+      if partitioned do
+        "events_root"
+      else
+        "events"
+      end
     """
     CREATE TABLE stream_events
     (
-      event_id uuid NOT NULL REFERENCES events (event_id),
+      event_id uuid NOT NULL REFERENCES #{events_table} (event_id),
       stream_id bigint NOT NULL REFERENCES streams (stream_id),
       stream_version bigint NOT NULL,
       original_stream_id bigint REFERENCES streams (stream_id),
@@ -359,4 +385,5 @@ defmodule EventStore.Sql.Init do
     VALUES (1, 3, 2);
     """
   end
+
 end

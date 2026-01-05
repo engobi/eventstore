@@ -11,6 +11,8 @@ defmodule EventStore.Storage do
     Subscription
   }
 
+  partitioned = Application.get_env(:eventstore, EventStore)[:partitioned_events] || false
+
   @doc """
   Create a new event stream with the given unique identifier.
   """
@@ -19,7 +21,7 @@ defmodule EventStore.Storage do
   @doc """
   Append the given list of recorded events to storage.
   """
-  defdelegate append_to_stream(conn, stream_id, events, opts), to: Appender, as: :append
+  defdelegate append_to_stream(conn, stream_id, events, opts, partitioned), to: Appender, as: :append
 
   @doc """
   Link the existing event ids already present in a stream to the given stream.
