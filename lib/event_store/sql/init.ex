@@ -3,24 +3,32 @@ defmodule EventStore.Sql.Init do
 
   # PostgreSQL statements to intialize an event store schema.
 
+  def create_partitioned_or_normal_events_table(partitioned, column_data_type) do
+    if partitioned do
+      create_events_root_table()
+      create_partitioned_events_table(column_data_type)
+    else
+      create_events_table(column_data_type)
+  end
+
   def statements(config) do
     column_data_type = Keyword.fetch!(config, :column_data_type)
     schema = Keyword.fetch!(config, :schema)
+    partitioned = Keyword.fetch!(config, :partitioned_events, false)
 
     [
       ~s(SET LOCAL search_path TO "#{schema}";),
       create_streams_table(),
       create_stream_uuid_index(),
-      create_events_root_table(),
-      create_events_table(column_data_type),
+      create_partitioned_or_normal_events_table(partitioned, column_data_type),
       create_events_indexes(column_data_type)
       create_stream_events_table(),
       create_stream_events_index(),
       create_event_store_exception_function(),
       create_event_store_delete_function(),
       prevent_streams_delete(),
-      prevent_event_delete(),
-      prevent_event_update(),
+      prevent_event_delete(partitioned),
+      prevent_event_update(partitioned),
       prevent_stream_events_delete(),
       prevent_stream_events_update(),
       create_notify_events_function(),
@@ -70,8 +78,8 @@ defmodule EventStore.Sql.Init do
     """
   end
 
-  # Create `events` parent table
-  defp create_events_table(column_data_type) do
+  # Create partitioned `events` parent table
+  defp create_partitioned_events_table(column_data_type) do
     """
     CREATE TABLE events (
         event_id UUID NOT NULL,
@@ -89,6 +97,22 @@ defmodule EventStore.Sql.Init do
     """
   end
 
+  # Create `events` table
+  defp create_events_table(column_data_type) do
+    """
+    CREATE TABLE events
+    (
+        event_id uuid PRIMARY KEY NOT NULL,
+        event_type text NOT NULL,
+        causation_id uuid NULL,
+        correlation_id uuid NULL,
+        data #{column_data_type} NOT NULL,
+        metadata #{column_data_type} NULL,
+        created_at timestamp with time zone DEFAULT NOW() NOT NULL
+    );
+    """
+  end
+
   # Create `events` indexes
   defp create_events_indexes(column_data_type) do
     idx_query = """
@@ -98,7 +122,7 @@ defmodule EventStore.Sql.Init do
 
     # Adding an index if data is a jsonb 
     if String.downcase(column_data_type) == "jsonb" do
-      idx_query <> """CREATE INDEX ON events USING GIN ("data" jsonb_path_ops);"""
+      idx_query <> "CREATE INDEX ON events USING GIN (\"data\" jsonb_path_ops);"
     else
       idx_query
     end
@@ -144,33 +168,50 @@ defmodule EventStore.Sql.Init do
   end
 
   # prevent updates to `events` table
-  defp prevent_event_update do
+  defp prevent_event_update(partitioned) do
+    events_trigger = """
+      CREATE TRIGGER no_update_events
+      BEFORE UPDATE ON events
+      FOR EACH STATEMENT
+      EXECUTE PROCEDURE event_store_exception('Cannot update events');
     """
-    CREATE TRIGGER no_update_events_root
-    BEFORE UPDATE ON events_root
-    FOR EACH STATEMENT
-    EXECUTE PROCEDURE event_store_exception('Cannot update events_root');
+    events_root_trigger =
+    if partitioned do
+      """
+        CREATE TRIGGER no_update_events_root
+        BEFORE UPDATE ON events_root
+        FOR EACH STATEMENT
+        EXECUTE PROCEDURE event_store_exception('Cannot update events_root');
+      """
+    else
+      ""
+    end
 
-    CREATE TRIGGER no_update_events
-    BEFORE UPDATE ON events
-    FOR EACH STATEMENT
-    EXECUTE PROCEDURE event_store_exception('Cannot update events');
-    """
+    events_root_trigger <> events_trigger
   end
 
   # prevent deletion from `events` table
-  defp prevent_event_delete do
+  defp prevent_event_delete(partitioned) do
+    events_trigger = """
+      CREATE TRIGGER no_delete_events
+      BEFORE DELETE ON events
+      FOR EACH STATEMENT
+      EXECUTE PROCEDURE event_store_delete('Cannot delete events');
     """
-    CREATE TRIGGER no_delete_events
-    BEFORE DELETE ON events
-    FOR EACH STATEMENT
-    EXECUTE PROCEDURE event_store_delete('Cannot delete events');
 
-    CREATE TRIGGER no_delete_events_root
-    BEFORE DELETE ON events_root
-    FOR EACH STATEMENT
-    EXECUTE PROCEDURE event_store_delete('Cannot delete events_root');
-    """
+    events_root_trigger =
+    if partitioned do
+      """
+        CREATE TRIGGER no_delete_events_root
+        BEFORE DELETE ON events_root
+        FOR EACH STATEMENT
+        EXECUTE PROCEDURE event_store_delete('Cannot delete events_root');
+      """
+    else
+      ""
+    end
+
+    events_root_trigger <> events_trigger
   end
 
   defp create_stream_events_table do

@@ -3,15 +3,17 @@ defmodule EventStore.Sql.Statements do
 
   require EEx
 
-  alias EventStore.Sql.{Init, Reset}
+  alias EventStore.Sql.{Config, Init, Reset}
 
   defdelegate initializers(config), to: Init, as: :statements
   defdelegate reset(config), to: Reset, as: :statements
 
+  partitioned_events = Config.partitioned_events(config)
+
   for {fun, args} <- [
         {:count_streams, [:schema]},
         {:create_stream, [:schema]},
-        {:insert_events, [:schema, :stream_id, :number_of_events, :created_at]},
+        {:insert_events, [:schema, :stream_id, :number_of_events, :created_at, :partitioned_events]},
         {:insert_events_any_version, [:schema, :stream_id, :number_of_events, :created_at]},
         {:insert_link_events, [:schema, :number_of_events]},
         {:soft_delete_stream, [:schema]},

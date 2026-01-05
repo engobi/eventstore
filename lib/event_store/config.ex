@@ -154,4 +154,12 @@ defmodule EventStore.Config do
     config
     |> Keyword.merge(Keyword.get(config, :session_mode_pool, []))
   end
+
+  # Retrieve the value of the optional partitioned_events parameter,
+  # which indicates whether the Postgres event table is partitioned.
+  defp partitioned_events?(config) do
+    config
+    |> Keyword.merge(Keyword.get(config, :partitioned_events, false))
+  end
+
 end
