@@ -7,6 +7,12 @@ linked_events AS (
   DELETE FROM "<%= schema %>".stream_events
   WHERE event_id IN (SELECT event_id FROM deleted_stream_events)
 ),
+<%= if partitioned do %>
+events_root AS (
+  DELETE FROM "<%= schema %>".events_root
+  WHERE event_id IN (SELECT event_id FROM deleted_stream_events)
+),
+<% end %>
 events AS (
   DELETE FROM "<%= schema %>".events
   WHERE event_id IN (SELECT event_id FROM deleted_stream_events)

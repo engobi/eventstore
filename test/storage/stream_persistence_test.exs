@@ -143,13 +143,15 @@ defmodule EventStore.Storage.StreamPersistenceTest do
          initial_event_number \\ 1
        ) do
     %{conn: conn, schema: schema} = context
+         
+    partitioned = Application.get_env(:eventstore, EventStore)[:partitioned_events] || false
 
     {:ok, stream_id} = CreateStream.execute(conn, stream_uuid, schema: schema)
 
     recorded_events =
       EventFactory.create_recorded_events(number_of_events, stream_uuid, initial_event_number)
 
-    :ok = Appender.append(conn, stream_id, recorded_events, schema: schema)
+    :ok = Appender.append(conn, stream_id, recorded_events, schema: schema, partitioned_events: partitioned)
 
     {:ok, stream_id}
   end

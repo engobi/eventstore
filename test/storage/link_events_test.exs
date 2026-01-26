@@ -110,7 +110,9 @@ defmodule EventStore.Storage.LinkEventsTest do
   defp append(context, stream_id, recorded_events) do
     %{conn: conn, schema: schema} = context
 
-    Appender.append(conn, stream_id, recorded_events, schema: schema)
+    partitioned = Application.get_env(:eventstore, EventStore)[:partitioned_events] || false
+
+    Appender.append(conn, stream_id, recorded_events, schema: schema, partitioned_events: partitioned)
   end
 
   defp link(context, stream_id, recorded_events) do

@@ -1,5 +1,5 @@
 WITH
-  stream AS (
+stream AS (
     <%= cond do %>
     <% stream_id -> %>
       UPDATE "<%= schema %>".streams
@@ -23,8 +23,8 @@ WITH
       ($<%= i*9+3 %>::uuid, $<%= i*9+10 %>::int, $<%= i*9+11 %>::bigint)
     <% end %>
   ),
-  <%= if @partitioned_events do %>
-   events_root AS (
+  <%= if partitioned do %>
+  events_root AS (
      <%
        # insert the new events into the events_root table
        #   using the 7 bind variables from 3 to 9 inclusive

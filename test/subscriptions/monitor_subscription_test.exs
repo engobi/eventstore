@@ -6,6 +6,10 @@ defmodule EventStore.Subscriptions.MonitorSubscriptionTest do
 
   @event_store TestEventStore
 
+  def partitioned? do
+    Application.get_env(:eventstore, EventStore)[:partitioned_events] || false
+  end
+
   describe "monitor subscription" do
     test "should shutdown all stream subscription on subscriber shutdown" do
       subscription_name = UUID.uuid4()
@@ -29,7 +33,7 @@ defmodule EventStore.Subscriptions.MonitorSubscriptionTest do
       assert Process.alive?(subscriber2)
 
       # Appending events to stream should notify subscription 2
-      :ok = EventStore.append_to_stream(stream_uuid, 0, events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?())
 
       # Subscription 2 should still receive events
       assert_receive {:events, received_events}
@@ -66,7 +70,7 @@ defmodule EventStore.Subscriptions.MonitorSubscriptionTest do
       assert Process.alive?(subscriber2)
 
       # Should still notify subscription 2
-      :ok = EventStore.append_to_stream(stream_uuid, 0, events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?())
 
       # Subscription 2 should still receive events
       assert_receive {:events, received_events}
@@ -85,7 +89,7 @@ defmodule EventStore.Subscriptions.MonitorSubscriptionTest do
 
       :ok = Subscriptions.unsubscribe_from_stream(@event_store, stream_uuid, subscription_name)
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?())
 
       refute_receive {:events, _received_events}
       refute Process.alive?(subscription)

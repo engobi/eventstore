@@ -4,6 +4,10 @@ defmodule EventStore.SchemaTest do
   alias EventStore.{Config, EventFactory, UUID}
   alias EventStore.Storage.Initializer
 
+  def partitioned?(evs) do
+    Application.get_env(:eventstore, evs)[:partitioned_events] || false
+  end
+
   setup_all do
     config = SchemaEventStore.config()
     postgrex_config = Config.default_postgrex_opts(config)
@@ -91,8 +95,8 @@ defmodule EventStore.SchemaTest do
 
     events = EventFactory.create_events(1)
 
-    :ok = SchemaEventStore.append_to_stream(stream_uuid, 0, events)
-    :ok = TestEventStore.append_to_stream(stream_uuid, 0, events)
+    :ok = SchemaEventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?(SchemaEventStore))
+    :ok = TestEventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?(TestEventStore))
 
     assert_receive {:events, received_events}
     assert_events(events, received_events)
@@ -114,7 +118,7 @@ defmodule EventStore.SchemaTest do
   defp do_append_to_stream(stream_uuid, count, expected_version \\ 0) do
     events = EventFactory.create_events(count, expected_version + 1)
 
-    :ok = SchemaEventStore.append_to_stream(stream_uuid, expected_version, events)
+    :ok = SchemaEventStore.append_to_stream(stream_uuid, expected_version, events, partitioned_events: partitioned?(SchemaEventStore))
 
     {:ok, events}
   end

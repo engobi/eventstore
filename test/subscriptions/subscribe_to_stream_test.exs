@@ -24,6 +24,10 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
     {:ok, %{subscription_name: subscription_name}}
   end
 
+  def partitioned? do
+    Application.get_env(:eventstore, EventStore)[:partitioned_events] || false
+  end
+
   describe "single stream subscription" do
     setup [:append_events_to_another_stream]
 
@@ -57,7 +61,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
 
       {:ok, _subscription} = subscribe_to_stream(stream_uuid, subscription_name, self())
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?())
 
       assert_receive {:events, received_events}
       assert pluck(received_events, :event_number) == [1, 2, 3]
@@ -72,17 +76,17 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
     end
 
     test "subscribe to single stream from given stream version should only receive later events",
-         %{subscription_name: subscription_name} do
+    %{subscription_name: subscription_name} do
       stream_uuid = UUID.uuid4()
       initial_events = EventFactory.create_events(1)
       new_events = EventFactory.create_events(1, 2)
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events, partitioned_events: partitioned?())
 
       {:ok, _subscription} =
         subscribe_to_stream(stream_uuid, subscription_name, self(), start_from: 1)
 
-      :ok = EventStore.append_to_stream(stream_uuid, 1, new_events)
+      :ok = EventStore.append_to_stream(stream_uuid, 1, new_events, partitioned_events: partitioned?())
 
       assert_receive {:events, received_events}
       assert pluck(received_events, :event_number) == [2]
@@ -102,10 +106,10 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       stream_uuid = UUID.uuid4()
 
       assert {:ok, _subscription} =
-               EventStore.subscribe_to_stream(stream_uuid, subscription_name, self())
+        EventStore.subscribe_to_stream(stream_uuid, subscription_name, self())
 
       assert {:error, :subscription_already_exists} =
-               EventStore.subscribe_to_stream(stream_uuid, subscription_name, self())
+        EventStore.subscribe_to_stream(stream_uuid, subscription_name, self())
     end
 
     test "subscribe to single stream should ignore events from another stream", %{
@@ -120,8 +124,8 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       {:ok, _subscription} =
         subscribe_to_stream(interested_stream_uuid, subscription_name, self())
 
-      :ok = EventStore.append_to_stream(interested_stream_uuid, 0, interested_events)
-      :ok = EventStore.append_to_stream(other_stream_uuid, 0, other_events)
+      :ok = EventStore.append_to_stream(interested_stream_uuid, 0, interested_events, partitioned_events: partitioned?())
+      :ok = EventStore.append_to_stream(other_stream_uuid, 0, other_events, partitioned_events: partitioned?())
 
       # received events should not include events from the other stream
       assert_receive {:events, received_events}
@@ -130,7 +134,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
     end
 
     test "subscribe to single stream with mapper function should receive all its mapped events",
-         %{subscription_name: subscription_name} do
+    %{subscription_name: subscription_name} do
       stream_uuid = UUID.uuid4()
       events = EventFactory.create_events(3)
 
@@ -142,14 +146,14 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
           mapper: fn event -> event.event_number end
         )
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?())
 
       assert_receive {:events, received_mapped_events}
       assert received_mapped_events == [1, 2, 3]
     end
 
     test "subscribe to single stream with selector function should receive only filtered events",
-         %{subscription_name: subscription_name} do
+    %{subscription_name: subscription_name} do
       stream_uuid = UUID.uuid4()
       events = EventFactory.create_events(4)
 
@@ -161,14 +165,15 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
           selector: fn event -> rem(event.event_number, 2) == 0 end
         )
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?())
 
       assert_receive_events(subscription, [2, 4])
     end
 
     test "subscribe to single stream with selector function should continue to receive only filtered events",
-         %{subscription_name: subscription_name} do
+    %{subscription_name: subscription_name} do
       stream_uuid = UUID.uuid4()
+
       events = EventFactory.create_events(3)
 
       {:ok, subscription} =
@@ -179,11 +184,11 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
           selector: fn event -> rem(event.event_number, 2) == 0 end
         )
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?())
 
       assert_receive_events(subscription, [2])
 
-      :ok = EventStore.append_to_stream(stream_uuid, 3, events)
+      :ok = EventStore.append_to_stream(stream_uuid, 3, events, partitioned_events: partitioned?())
 
       assert_receive_events(subscription, [4, 6])
 
@@ -191,7 +196,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
     end
 
     test "subscribe to single stream with selector function during catch-up should continue to receive only filtered events",
-         %{subscription_name: subscription_name} do
+    %{subscription_name: subscription_name} do
       stream_uuid = UUID.uuid4()
 
       :ok = EventStore.append_to_stream(stream_uuid, 0, EventFactory.create_events(3))
@@ -212,7 +217,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
     end
 
     test "subscribe to single stream with selector function and mapper function should receive only filtered events and mapped events",
-         %{subscription_name: subscription_name} do
+    %{subscription_name: subscription_name} do
       stream_uuid = UUID.uuid4()
       events = EventFactory.create_events(4)
 
@@ -228,7 +233,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
           mapper: mapper
         )
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?())
 
       assert_receive {:events, [2, 4]}
     end
@@ -266,8 +271,8 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       initial_events = EventFactory.create_events(1)
       new_events = EventFactory.create_events(1, 2)
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events)
-      :ok = EventStore.append_to_stream(stream_uuid, 1, new_events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events, partitioned_events: partitioned?())
+      :ok = EventStore.append_to_stream(stream_uuid, 1, new_events, partitioned_events: partitioned?())
 
       {:ok, subscription} = EventStore.subscribe_to_stream(stream_uuid, subscription_name, self())
 
@@ -288,10 +293,10 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
     test "should catch-up from unseen events", %{subscription_name: subscription_name} do
       stream_uuid = UUID.uuid4()
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, EventFactory.create_events(1))
-      :ok = EventStore.append_to_stream(stream_uuid, 1, EventFactory.create_events(2))
-      :ok = EventStore.append_to_stream(stream_uuid, 3, EventFactory.create_events(3))
-      :ok = EventStore.append_to_stream(stream_uuid, 6, EventFactory.create_events(4))
+      :ok = EventStore.append_to_stream(stream_uuid, 0, EventFactory.create_events(1), partitioned_events: partitioned?())
+      :ok = EventStore.append_to_stream(stream_uuid, 1, EventFactory.create_events(2), partitioned_events: partitioned?())
+      :ok = EventStore.append_to_stream(stream_uuid, 3, EventFactory.create_events(3), partitioned_events: partitioned?())
+      :ok = EventStore.append_to_stream(stream_uuid, 6, EventFactory.create_events(4), partitioned_events: partitioned?())
 
       {:ok, subscription} = subscribe_to_stream(stream_uuid, subscription_name, self())
 
@@ -323,7 +328,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       Wait.until(fn -> assert_hibernated(subscription) end)
 
       # Appending events to the stream should resume the subscription's event loop
-      :ok = EventStore.append_to_stream(stream_uuid, 0, events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?())
 
       assert_receive {:events, received_events}
 
@@ -354,8 +359,8 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
 
       {:ok, subscription} = subscribe_to_all_streams(subscription_name, self(), buffer_size: 1)
 
-      :ok = EventStore.append_to_stream(stream1_uuid, 0, stream1_events)
-      :ok = EventStore.append_to_stream(stream2_uuid, 0, stream2_events)
+      :ok = EventStore.append_to_stream(stream1_uuid, 0, stream1_events, partitioned_events: partitioned?())
+      :ok = EventStore.append_to_stream(stream2_uuid, 0, stream2_events, partitioned_events: partitioned?())
 
       assert_receive {:events, stream1_received_events}
       assert pluck(stream1_received_events, :event_number) == [1]
@@ -363,7 +368,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       assert pluck(stream1_received_events, :stream_version) == [1]
 
       assert pluck(stream1_received_events, :correlation_id) ==
-               pluck(stream1_events, :correlation_id)
+        pluck(stream1_events, :correlation_id)
 
       assert pluck(stream1_received_events, :causation_id) == pluck(stream1_events, :causation_id)
       assert pluck(stream1_received_events, :event_type) == pluck(stream1_events, :event_type)
@@ -379,7 +384,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       assert pluck(stream2_received_events, :stream_version) == [1]
 
       assert pluck(stream2_received_events, :correlation_id) ==
-               pluck(stream2_events, :correlation_id)
+        pluck(stream2_events, :correlation_id)
 
       assert pluck(stream2_received_events, :causation_id) == pluck(stream2_events, :causation_id)
       assert pluck(stream2_received_events, :event_type) == pluck(stream2_events, :event_type)
@@ -389,7 +394,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
     end
 
     test "subscribe to all streams from given stream id should only receive later events from all streams",
-         %{subscription_name: subscription_name} do
+    %{subscription_name: subscription_name} do
       stream1_uuid = UUID.uuid4()
       stream2_uuid = UUID.uuid4()
 
@@ -398,14 +403,14 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       stream1_new_events = EventFactory.create_events(1, 2)
       stream2_new_events = EventFactory.create_events(1, 2)
 
-      :ok = EventStore.append_to_stream(stream1_uuid, 0, stream1_initial_events)
-      :ok = EventStore.append_to_stream(stream2_uuid, 0, stream2_initial_events)
+      :ok = EventStore.append_to_stream(stream1_uuid, 0, stream1_initial_events, partitioned_events: partitioned?())
+      :ok = EventStore.append_to_stream(stream2_uuid, 0, stream2_initial_events, partitioned_events: partitioned?())
 
       {:ok, subscription} =
         subscribe_to_all_streams(subscription_name, self(), buffer_size: 1, start_from: 2)
 
-      :ok = EventStore.append_to_stream(stream1_uuid, 1, stream1_new_events)
-      :ok = EventStore.append_to_stream(stream2_uuid, 1, stream2_new_events)
+      :ok = EventStore.append_to_stream(stream1_uuid, 1, stream1_new_events, partitioned_events: partitioned?())
+      :ok = EventStore.append_to_stream(stream2_uuid, 1, stream2_new_events, partitioned_events: partitioned?())
 
       assert_receive {:events, stream1_received_events}
 
@@ -425,7 +430,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
 
       {:ok, subscription} = subscribe_to_all_streams(subscription_name, self(), buffer_size: 3)
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?())
 
       assert_receive_events(subscription, [1, 2, 3])
 
@@ -443,7 +448,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
 
       {:ok, subscription} = subscribe_to_all_streams(subscription_name, self(), buffer_size: 3)
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events, partitioned_events: partitioned?())
 
       assert_receive {:events, initial_received_events}
       assert length(initial_received_events) == 3
@@ -453,7 +458,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       :ok = Subscription.ack(subscription, hd(initial_received_events))
       refute_receive {:events, _events}
 
-      :ok = EventStore.append_to_stream(stream_uuid, 3, remaining_events)
+      :ok = EventStore.append_to_stream(stream_uuid, 3, remaining_events, partitioned_events: partitioned?())
 
       # Acknowledge receipt of all initial events
       Subscription.ack(subscription, initial_received_events)
@@ -477,8 +482,8 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
 
       refute_receive {:events, _events}
 
-      :ok = EventStore.append_to_stream(stream1_uuid, 0, stream1_events)
-      :ok = EventStore.append_to_stream(stream2_uuid, 0, stream2_events)
+      :ok = EventStore.append_to_stream(stream1_uuid, 0, stream1_events, partitioned_events: partitioned?())
+      :ok = EventStore.append_to_stream(stream2_uuid, 0, stream2_events, partitioned_events: partitioned?())
 
       assert_receive {:events, stream1_received_events}
 
@@ -510,7 +515,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
           start_from: 3
         )
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?())
 
       # Should receive the same three events from both subscriptions
       assert_receive {:events, [%RecordedEvent{event_number: 1} | _events] = received_events1}
@@ -523,11 +528,11 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
     end
 
     defp assert_received_events(
-           received_events,
-           stream_uuid,
-           expected_events,
-           expected_event_numbers
-         ) do
+      received_events,
+      stream_uuid,
+      expected_events,
+      expected_event_numbers
+    ) do
       assert pluck(received_events, :event_number) == expected_event_numbers
       assert pluck(received_events, :stream_uuid) == [stream_uuid, stream_uuid, stream_uuid]
       assert pluck(received_events, :stream_version) == [1, 2, 3]
@@ -558,8 +563,8 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       assert_receive {:subscribed, ^subscriber3}
       assert_receive {:subscribed, ^subscriber4}
 
-      :ok = EventStore.append_to_stream(stream1_uuid, 0, stream1_events)
-      :ok = EventStore.append_to_stream(stream2_uuid, 0, stream2_events)
+      :ok = EventStore.append_to_stream(stream1_uuid, 0, stream1_events, partitioned_events: partitioned?())
+      :ok = EventStore.append_to_stream(stream2_uuid, 0, stream2_events, partitioned_events: partitioned?())
 
       Wait.until(fn ->
         all_received_events =
@@ -586,7 +591,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       initial_events = EventFactory.create_events(1)
       new_events = EventFactory.create_events(1, 2)
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events, partitioned_events: partitioned?())
 
       {:ok, subscription} = EventStore.subscribe_to_stream(stream_uuid, subscription_name, self())
 
@@ -599,7 +604,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       Process.exit(subscription, :kill)
       refute Process.info(subscription)
 
-      :ok = EventStore.append_to_stream(stream_uuid, 1, new_events)
+      :ok = EventStore.append_to_stream(stream_uuid, 1, new_events, partitioned_events: partitioned?())
       {:ok, subscription} = EventStore.subscribe_to_stream(stream_uuid, subscription_name, self())
 
       assert_receive {:subscribed, ^subscription}
@@ -616,7 +621,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       initial_events = EventFactory.create_events(1)
       new_events = EventFactory.create_events(1, 2)
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events, partitioned_events: partitioned?())
 
       {:ok, subscription} =
         EventStore.subscribe_to_stream(stream_uuid, subscription_name, self(), transient: true)
@@ -630,7 +635,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       Process.exit(subscription, :kill)
       refute Process.info(subscription)
 
-      :ok = EventStore.append_to_stream(stream_uuid, 1, new_events)
+      :ok = EventStore.append_to_stream(stream_uuid, 1, new_events, partitioned_events: partitioned?())
 
       {:ok, subscription} =
         EventStore.subscribe_to_stream(stream_uuid, subscription_name, self(), transient: true)
@@ -648,8 +653,8 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       new_events = EventFactory.create_events(1, 2)
       after_restart_events = EventFactory.create_events(1, 3)
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events)
-      :ok = EventStore.append_to_stream(stream_uuid, 1, new_events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events, partitioned_events: partitioned?())
+      :ok = EventStore.append_to_stream(stream_uuid, 1, new_events, partitioned_events: partitioned?())
 
       {:ok, subscription} =
         EventStore.subscribe_to_stream(stream_uuid, subscription_name, self(), transient: true)
@@ -666,7 +671,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       Process.exit(subscription, :kill)
       refute Process.info(subscription)
 
-      :ok = EventStore.append_to_stream(stream_uuid, 2, after_restart_events)
+      :ok = EventStore.append_to_stream(stream_uuid, 2, after_restart_events, partitioned_events: partitioned?())
 
       {:ok, subscription} =
         EventStore.subscribe_to_stream(stream_uuid, subscription_name, self(),
@@ -687,7 +692,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       initial_events = EventFactory.create_events(1)
       new_events = EventFactory.create_events(1, 2)
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events, partitioned_events: partitioned?())
 
       {:ok, subscription} =
         EventStore.subscribe_to_stream(stream_uuid, subscription_name, self(), transient: true)
@@ -701,7 +706,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       Process.exit(subscription, :kill)
       refute Process.info(subscription)
 
-      :ok = EventStore.append_to_stream(stream_uuid, 1, new_events)
+      :ok = EventStore.append_to_stream(stream_uuid, 1, new_events, partitioned_events: partitioned?())
 
       {:ok, subscription} =
         EventStore.subscribe_to_stream(stream_uuid, subscription_name, self(), transient: false)
@@ -719,7 +724,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       initial_events = EventFactory.create_events(1)
       new_events = EventFactory.create_events(1, 2)
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events, partitioned_events: partitioned?())
 
       {:ok, subscription} =
         EventStore.subscribe_to_stream(stream_uuid, subscription_name, self(), transient: false)
@@ -733,7 +738,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       Process.exit(subscription, :kill)
       refute Process.info(subscription)
 
-      :ok = EventStore.append_to_stream(stream_uuid, 1, new_events)
+      :ok = EventStore.append_to_stream(stream_uuid, 1, new_events, partitioned_events: partitioned?())
 
       {:ok, subscription} =
         EventStore.subscribe_to_stream(stream_uuid, subscription_name, self(), transient: true)
@@ -762,8 +767,8 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
       initial_events = EventFactory.create_events(1)
       new_events = EventFactory.create_events(1, 2)
 
-      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events)
-      :ok = EventStore.append_to_stream(stream_uuid, 1, new_events)
+      :ok = EventStore.append_to_stream(stream_uuid, 0, initial_events, partitioned_events: partitioned?())
+      :ok = EventStore.append_to_stream(stream_uuid, 1, new_events, partitioned_events: partitioned?())
 
       {:ok, subscription} = EventStore.subscribe_to_stream(stream_uuid, subscription_name, self())
 
@@ -814,7 +819,7 @@ defmodule EventStore.Subscriptions.SubscribeToStreamTest do
     stream_uuid = UUID.uuid4()
     events = EventFactory.create_events(3)
 
-    :ok = EventStore.append_to_stream(stream_uuid, 0, events)
+    :ok = EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?())
   end
 
   # Subscribe to a single stream and wait for the subscription to be subscribed

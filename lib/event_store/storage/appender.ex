@@ -13,7 +13,7 @@ defmodule EventStore.Storage.Appender do
 
   Returns `:ok` on success, `{:error, reason}` on failure.
   """
-  def append(conn, stream_id, events, opts, partitioned) do
+  def append(conn, stream_id, events, opts) do
     [%RecordedEvent{stream_uuid: stream_uuid} | _] = events
 
     try do
@@ -24,7 +24,7 @@ defmodule EventStore.Storage.Appender do
         event_count = length(batch)
 
         with {:ok, new_stream_id} <-
-               insert_event_batch(conn, stream_id, stream_uuid, batch, event_count, opts, partitioned) do
+               insert_event_batch(conn, stream_id, stream_uuid, batch, event_count, opts) do
           Logger.debug("Appended #{event_count} event(s) to stream #{inspect(stream_uuid)}")
           new_stream_id
         else
@@ -98,10 +98,12 @@ defmodule EventStore.Storage.Appender do
   defp encode_uuid(nil), do: nil
   defp encode_uuid(value), do: UUID.string_to_binary!(value)
 
-  defp insert_event_batch(conn, stream_id, stream_uuid, events, event_count, opts, partitioned) do
+  defp insert_event_batch(conn, stream_id, stream_uuid, events, event_count, opts) do
     {schema, opts} = Keyword.pop(opts, :schema)
     {expected_version, opts} = Keyword.pop(opts, :expected_version)
     {created_at, opts} = Keyword.pop(opts, :created_at_override)
+    partitioned = Keyword.get(opts, :partitioned_events, false)
+    {debug, opts} = Keyword.pop(opts, :debug)
 
     statement =
       case expected_version do
@@ -112,12 +114,20 @@ defmodule EventStore.Storage.Appender do
           Statements.insert_events(schema, stream_id, event_count, created_at, partitioned)
       end
 
+    if debug do
+      IO.puts("Statement : #{statement}")
+    end
+
     stream_id_or_uuid = stream_id || stream_uuid
 
     params =
       [stream_id_or_uuid, event_count]
       |> Enum.concat(build_insert_parameters(events))
       |> append_if(!stream_id, created_at)
+
+    if debug do
+      IO.inspect(params)
+    end
 
     case Postgrex.query(conn, statement, params, opts) do
       {:ok, %Postgrex.Result{num_rows: 0}} ->

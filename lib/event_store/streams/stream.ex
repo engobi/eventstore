@@ -4,18 +4,21 @@ defmodule EventStore.Streams.Stream do
   alias EventStore.{EventData, RecordedEvent, Storage, UUID}
   alias EventStore.Streams.StreamInfo
 
-  def append_to_stream(conn, stream_uuid, expected_version, events, opts, partitioned)
+  def append_to_stream(conn, stream_uuid, expected_version, events, opts)
       when length(events) < 1000 do
+    #IO.inspect(events) 
     {serializer, new_opts} = Keyword.pop(opts, :serializer)
+        
+    #IO.inspect(stream_info(conn, stream_uuid, expected_version, new_opts))
 
     with {:ok, stream} <- stream_info(conn, stream_uuid, expected_version, new_opts),
-         :ok <- do_append_to_storage(conn, stream, events, expected_version, serializer, new_opts, partitioned) do
+         :ok <- do_append_to_storage(conn, stream, events, expected_version, serializer, new_opts) do
       :ok
     end
-    |> maybe_retry_once(conn, stream_uuid, expected_version, events, opts, partitioned)
+    |> maybe_retry_once(conn, stream_uuid, expected_version, events, opts)
   end
 
-  def append_to_stream(conn, stream_uuid, expected_version, events, opts, partitioned) do
+  def append_to_stream(conn, stream_uuid, expected_version, events, opts) do
     {serializer, new_opts} = Keyword.pop(opts, :serializer)
 
     transaction(
@@ -29,8 +32,7 @@ defmodule EventStore.Streams.Stream do
                  events,
                  expected_version,
                  serializer,
-                 new_opts,
-                 partitioned
+                 new_opts
                ) do
           :ok
         else
@@ -39,7 +41,7 @@ defmodule EventStore.Streams.Stream do
       end,
       new_opts
     )
-    |> maybe_retry_once(conn, stream_uuid, expected_version, events, opts, partitioned)
+    |> maybe_retry_once(conn, stream_uuid, expected_version, events, opts)
   end
 
   def link_to_stream(conn, stream_uuid, expected_version, events_or_event_ids, opts) do
@@ -144,12 +146,12 @@ defmodule EventStore.Streams.Stream do
          events,
          expected_version,
          serializer,
-         opts,
-         partitioned
+         opts
        ) do
     prepared_events = prepare_events(events, stream, serializer, opts)
+    #IO.inspect(prepared_events)
 
-    write_to_stream(conn, prepared_events, stream, expected_version, opts, partitioned)
+    write_to_stream(conn, prepared_events, stream, expected_version, opts)
   end
 
   defp prepare_events(events, %StreamInfo{} = stream, serializer, opts) do
@@ -212,12 +214,13 @@ defmodule EventStore.Streams.Stream do
     raise ArgumentError, message: "Invalid event id, expected a UUID but got: #{inspect(invalid)}"
   end
 
-  defp write_to_stream(conn, prepared_events, %StreamInfo{} = stream, expected_version, opts, partitioned) do
+  defp write_to_stream(conn, prepared_events, %StreamInfo{} = stream, expected_version, opts) do
     %StreamInfo{stream_id: stream_id} = stream
 
     opts = Keyword.put(opts, :expected_version, expected_version)
+    #IO.inspect(opts)
 
-    Storage.append_to_stream(conn, stream_id, prepared_events, opts, partitioned)
+    Storage.append_to_stream(conn, stream_id, prepared_events, opts)
   end
 
   defp read_storage_forward(conn, %StreamInfo{} = stream, start_version, count, opts) do
@@ -339,19 +342,18 @@ defmodule EventStore.Streams.Stream do
          stream_uuid,
          expected_version,
          events,
-         opts,
-         partitioned
+         opts
        ) do
     unless Keyword.has_key?(opts, :retried_once) do
       opts = Keyword.put(opts, :retried_once, true)
 
-      append_to_stream(conn, stream_uuid, expected_version, events, opts, partitioned)
+      append_to_stream(conn, stream_uuid, expected_version, events, opts)
     else
       {:error, {:already_retried_once, :duplicate_stream_uuid}}
     end
   end
 
-  defp maybe_retry_once(error, _conn, _stream_uuid, _expected_version, _events, _opts, _partitioned), do: error
+  defp maybe_retry_once(error, _conn, _stream_uuid, _expected_version, _events, _opts), do: error
 
   defp transaction(conn, transaction_fun, opts) do
     case Postgrex.transaction(conn, transaction_fun, opts) do

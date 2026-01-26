@@ -118,7 +118,7 @@ defmodule EventStore do
 
   Use a dynamic event store by providing its name as an option to each function:
 
-      :ok = EventStore.append_to_stream(stream_uuid, expected_version, events, name: :eventstore1, partitioned)
+      :ok = EventStore.append_to_stream(stream_uuid, expected_version, events, name: :eventstore1, partitioned_events: :partitioned)
 
       {:ok, events} = EventStore.read_stream_forward(stream_uuid, 0, 1_000, name: :eventstore1)
 
@@ -183,7 +183,7 @@ defmodule EventStore do
       {:ok, pid} = Postgrex.start_link(config)
 
       Postgrex.transaction(pid, fn conn ->
-        :ok = EventStore.append_to_stream(stream_uuid, expected_version, events, conn: conn, partitioned)
+        :ok = EventStore.append_to_stream(stream_uuid, expected_version, events, conn: conn, partitioned_events: :partitioned)
       end)
 
   This can also be used with an Ecto `Repo` which is configured to use the
@@ -194,7 +194,7 @@ defmodule EventStore do
 
         conn = Process.get({Ecto.Adapters.SQL, pool})
 
-        :ok = EventStore.append_to_stream(stream_uuid, expected_version, events, conn: conn, partitioned)
+        :ok = EventStore.append_to_stream(stream_uuid, expected_version, events, conn: conn, partitioned_events: :partitioned)
       end)
 
   ---
@@ -296,17 +296,17 @@ defmodule EventStore do
 
       @accepted_overrides_append_to_stream [:created_at_override]
 
-      def append_to_stream(stream_uuid, expected_version, events, opts \\ [], partitioned)
+      def append_to_stream(stream_uuid, expected_version, events, opts \\ [])
 
-      def append_to_stream(@all_stream, _expected_version, _events, _opts, _partitioned),
+      def append_to_stream(@all_stream, _expected_version, _events, _opts),
         do: {:error, :cannot_append_to_all_stream}
 
-      def append_to_stream(stream_uuid, expected_version, events, opts, partitioned) do
+      def append_to_stream(stream_uuid, expected_version, events, opts) do
         overrides = Keyword.take(opts, @accepted_overrides_append_to_stream)
         {conn, opts} = parse_opts(opts)
         opts = Keyword.merge(opts, overrides)
 
-        Stream.append_to_stream(conn, stream_uuid, expected_version, events, opts, partitioned)
+        Stream.append_to_stream(conn, stream_uuid, expected_version, events, opts)
       end
 
       def link_to_stream(
@@ -658,8 +658,7 @@ defmodule EventStore do
               stream_uuid :: String.t(),
               expected_version,
               events :: list(EventData.t()),
-              opts :: options,
-              partitioned :: Boolean
+              opts :: options
             ) ::
               :ok
               | {:error, :cannot_append_to_all_stream}

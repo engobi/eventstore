@@ -8,16 +8,16 @@ defmodule EventStore.Sql.Statements do
   defdelegate initializers(config), to: Init, as: :statements
   defdelegate reset(config), to: Reset, as: :statements
 
-  partitioned_events = Application.get_env(:eventstore, EventStore)[:partitioned_events]
+  partitioned = Application.get_env(:eventstore, EventStore)[:partitioned_events]
 
   for {fun, args} <- [
         {:count_streams, [:schema]},
         {:create_stream, [:schema]},
-        {:insert_events, [:schema, :stream_id, :number_of_events, :created_at, :partitioned_events]},
-        {:insert_events_any_version, [:schema, :stream_id, :number_of_events, :created_at, :partitioned_events]},
+        {:insert_events, [:schema, :stream_id, :number_of_events, :created_at, :partitioned]},
+        {:insert_events_any_version, [:schema, :stream_id, :number_of_events, :created_at, :partitioned]},
         {:insert_link_events, [:schema, :number_of_events]},
         {:soft_delete_stream, [:schema]},
-        {:hard_delete_stream, [:schema]},
+        {:hard_delete_stream, [:schema, :partitioned]},
         {:insert_subscription, [:schema]},
         {:delete_subscription, [:schema]},
         {:try_advisory_lock, [:schema]},
@@ -37,6 +37,7 @@ defmodule EventStore.Sql.Statements do
 
     @external_resource file
 
+    #EEx.function_from_file(:def, fun, file, args ++ [:partitioned], engine: EventStore.EExIOListEngine)
     EEx.function_from_file(:def, fun, file, args, engine: EventStore.EExIOListEngine)
   end
 end

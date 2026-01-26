@@ -4,6 +4,10 @@ defmodule EventStore.Streams.SoftDeleteStreamTest do
   alias EventStore.{EventFactory, RecordedEvent, UUID}
   alias TestEventStore, as: EventStore
 
+  def partitioned? do
+    Application.get_env(:eventstore, EventStore)[:partitioned_events] || false
+  end
+
   describe "soft delete stream" do
     setup [:append_events_to_stream]
 
@@ -49,7 +53,7 @@ defmodule EventStore.Streams.SoftDeleteStreamTest do
 
       events = EventFactory.create_events(1)
 
-      assert {:error, :stream_deleted} = EventStore.append_to_stream(stream_uuid, 3, events)
+      assert {:error, :stream_deleted} = EventStore.append_to_stream(stream_uuid, 3, events, partitioned_events: partitioned?())
     end
 
     test "should prevent deleting global `$all` events stream" do
@@ -122,7 +126,7 @@ defmodule EventStore.Streams.SoftDeleteStreamTest do
     stream_uuid = UUID.uuid4()
     events = EventFactory.create_events(3)
 
-    :ok = EventStore.append_to_stream(stream_uuid, 0, events)
+    :ok = EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?())
 
     [stream_uuid: stream_uuid, events: events]
   end

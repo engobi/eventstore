@@ -5,6 +5,10 @@ defmodule EventStore.SharedConnectionPoolTest do
   alias EventStore.MonitoredServer.State, as: MonitoredServerState
   alias EventStore.Tasks.{Create, Drop, Init}
 
+  def partitioned? do
+    Application.get_env(:eventstore, TestEventStore)[:partitioned_events] || false
+  end
+
   describe "connection pool sharing" do
     setup do
       for schema <- ["schema1", "schema2"] do
@@ -183,7 +187,8 @@ defmodule EventStore.SharedConnectionPoolTest do
 
     :ok =
       TestEventStore.append_to_stream(stream_uuid, expected_version, events,
-        name: event_store_name
+        name: event_store_name,
+        partitioned_events: partitioned?()
       )
 
     {:ok, events}

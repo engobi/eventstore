@@ -266,11 +266,14 @@ defmodule EventStore.Streams.AllStreamTest do
       refute_receive {:events, _received_events}
 
       events = EventFactory.create_events(1, 4)
+      
+      partitioned = Application.get_env(:eventstore, TestEventStore)[:partitioned_events] || false
 
       :ok =
         Stream.append_to_stream(conn, stream1_uuid, 3, events,
           schema: schema,
-          serializer: serializer
+          serializer: serializer,
+          partitioned_events: partitioned
         )
 
       assert_receive {:events, received_events}
@@ -320,7 +323,11 @@ defmodule EventStore.Streams.AllStreamTest do
     stream_uuid = UUID.uuid4()
     events = EventFactory.create_events(3)
 
-    :ok = Stream.append_to_stream(conn, stream_uuid, 0, events, opts)
+    #IO.inspect(opts)
+
+    partitioned = Application.get_env(:eventstore, TestEventStore)[:partitioned_events] || false
+
+    :ok = Stream.append_to_stream(conn, stream_uuid, 0, events, Keyword.put(opts, :partitioned_events, partitioned))
 
     {stream_uuid, events}
   end
