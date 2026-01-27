@@ -40,13 +40,14 @@ defmodule AppendEventsBench do
 
   defp append_events(context, concurrency) do
     events = Keyword.fetch!(context, :events)
+    partitioned = Application.get_env(:eventstore, EventStore)[:partitioned_events] || false
 
     tasks =
       Enum.map(1..concurrency, fn _ ->
         stream_uuid = UUID.uuid4()
 
         Task.async(fn ->
-          EventStore.append_to_stream(stream_uuid, 0, events)
+          EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned)
         end)
       end)
 

@@ -45,6 +45,7 @@ defmodule SubscribeToStreamBench do
   defp subscribe_to_stream(context, concurrency, opts \\ []) do
     events = Keyword.fetch!(context, :events)
     stream_uuid = UUID.uuid4()
+    partitioned = Application.get_env(:eventstore, EventStore)[:partitioned_events] || false
 
     tasks =
       Enum.map(1..concurrency, fn index ->
@@ -67,7 +68,7 @@ defmodule SubscribeToStreamBench do
 
     append_task =
       Task.async(fn ->
-        :ok = EventStore.append_to_stream(stream_uuid, 0, events)
+        :ok = EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned)
       end)
 
     Enum.each([append_task | tasks], &Task.await(&1, @await_timeout_ms))

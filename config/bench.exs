@@ -13,11 +13,13 @@ default_config = [
   database: "eventstore_bench",
   hostname: "localhost",
   pool_size: 10,
-  serializer: EventStore.TermSerializer
+  serializer: EventStore.TermSerializer,
+  partitioned_events: true,  # Default false, set to true if you want a partioned events table
+  use_pg_partman: true
 ]
 
 config :eventstore, TestEventStore, default_config
 config :eventstore, SchemaEventStore, default_config
-config :eventstore, SecondEventStore, Keyword.put(default_config, :database, "eventstore_test_2")
+config :eventstore, SecondEventStore, Keyword.put(default_config, :database, "eventstore_bench_2")
 
 config :eventstore, event_stores: [TestEventStore]

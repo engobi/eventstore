@@ -11,6 +11,9 @@
 #
 defmodule EventBuilder do
   alias EventStore.{EventFactory, UUID}
+  alias TestEventStore, as: EventStore
+
+  partitioned = Application.get_env(:eventstore, EventStore)[:partitioned_events] || false
 
   def seed(total_event_count, events_per_stream, initial_event_number \\ 0)
 
@@ -24,7 +27,7 @@ defmodule EventBuilder do
     event_count = min(total_event_count, events_per_stream)
     events = EventFactory.create_events(event_count, initial_event_number)
 
-    :ok = TestEventStore.append_to_stream(stream_uuid, 0, events)
+    :ok = TestEventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned)
 
     remaining_event_count = total_event_count - event_count
     next_event_number = initial_event_number + event_count
