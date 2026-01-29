@@ -41,7 +41,7 @@ WITH
   events_root AS (
      <%
        # insert the new events into the events_root table
-       #   using the 7 bind variables from 3 to 9 inclusive
+       #   using the 1 bind variables from 3 to 9 inclusive
        #   n.b.: the bind for the event_id is re-generated here
      %>
      INSERT INTO "<%= schema %>".events_root
