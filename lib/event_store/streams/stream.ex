@@ -6,11 +6,8 @@ defmodule EventStore.Streams.Stream do
 
   def append_to_stream(conn, stream_uuid, expected_version, events, opts)
       when length(events) < 1000 do
-    #IO.inspect(events) 
     {serializer, new_opts} = Keyword.pop(opts, :serializer)
         
-    #IO.inspect(stream_info(conn, stream_uuid, expected_version, new_opts))
-
     with {:ok, stream} <- stream_info(conn, stream_uuid, expected_version, new_opts),
          :ok <- do_append_to_storage(conn, stream, events, expected_version, serializer, new_opts) do
       :ok
@@ -149,7 +146,6 @@ defmodule EventStore.Streams.Stream do
          opts
        ) do
     prepared_events = prepare_events(events, stream, serializer, opts)
-    #IO.inspect(prepared_events)
 
     write_to_stream(conn, prepared_events, stream, expected_version, opts)
   end
