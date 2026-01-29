@@ -5,8 +5,8 @@ defmodule EventStore.Sql.Reset do
 
   def statements(config) do
     schema = Keyword.fetch!(config, :schema)
-    partitioned = Keyword.fetch!(config, :partitioned_events) || false
-    partman = Keyword.fetch!(config, :use_pg_partman) || false
+    partitioned = Keyword.get(config, :partitioned_events, false)
+    partman = Keyword.get(config, :use_pg_partman, false)
 
     [
       ~s(SET LOCAL search_path TO "#{schema}";),

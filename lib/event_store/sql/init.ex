@@ -15,8 +15,8 @@ defmodule EventStore.Sql.Init do
     column_data_type = Keyword.fetch!(config, :column_data_type)
     schema = Keyword.fetch!(config, :schema) || 'event_store'
     database = Keyword.fetch!(config, :database)
-    partitioned = Keyword.fetch!(config, :partitioned_events) || false
-    partman = Keyword.fetch!(config, :use_pg_partman) || false
+    partitioned = Keyword.get(config, :partitioned_events, false)
+    partman = Keyword.get(config, :use_pg_partman, false)
 
     [
       ~s(SET LOCAL search_path TO "#{schema}";),
