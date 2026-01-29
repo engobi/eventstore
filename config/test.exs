@@ -23,7 +23,7 @@ default_config = [
 ]
 
 config :eventstore, TestEventStore, default_config
-config :eventstore, SecondEventStore, Keyword.put(default_config, :database, "thierryb_eventstore_test_2")
+config :eventstore, SecondEventStore, Keyword.put(default_config, :database, "eventstore_test_2")
 config :eventstore, SchemaEventStore, default_config
 
 config :eventstore, event_stores: [TestEventStore, SecondEventStore, SchemaEventStore]
