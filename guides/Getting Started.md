@@ -250,3 +250,36 @@ config :my_app, MyApp.EventStore,
 ```
 
 This will allow the EventStore to use your regular pool settings to connect to the database defined in `url` for most database operations. It will separately establish connections using the `session_mode_url` where necessary which you should point to PgBouncer in session mode or connected directly to the Postgres instance.
+
+## Working with partitioned events table
+
+For performance reasons, due to a very large number of events stored in the `events` table, it may be advisable to partition this table by date (using `created_at` as the partitioning key).
+
+### Enabling partitioning
+
+1. To enable partitioning support, add the `partitioned_events` parameter to the configuration file (e.g. `config/dev.exs`):
+
+```elixir
+config :my_app, MyApp.EventStore,
+  serializer: EventStore.JsonSerializer,
+  username: "postgres",
+  password: "postgres",
+  database: "eventstore",
+  hostname: "localhost",
+  partitioned_events: true
+```
+
+To enable automatic partition management, it is also possible to use the PostgreSQL extension [pg_partman](https://github.com/pgpartman/pg_partman). After installing pg_partman, add the `use_pg_partman` parameter to the configuration file (e.g. `config/dev.exs`):
+
+```elixir
+config :my_app, MyApp.EventStore,
+  serializer: EventStore.JsonSerializer,
+  username: "postgres",
+  password: "postgres",
+  database: "eventstore",
+  hostname: "localhost",
+  partitioned_events: true,
+  use_pg_partman: true
+```
+
+
