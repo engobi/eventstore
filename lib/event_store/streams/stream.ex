@@ -218,7 +218,6 @@ defmodule EventStore.Streams.Stream do
     %StreamInfo{stream_id: stream_id} = stream
 
     opts = Keyword.put(opts, :expected_version, expected_version)
-    #IO.inspect(opts)
 
     Storage.append_to_stream(conn, stream_id, prepared_events, opts)
   end
