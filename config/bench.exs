@@ -14,8 +14,8 @@ default_config = [
   hostname: "localhost",
   pool_size: 10,
   serializer: EventStore.TermSerializer,
-  partitioned_events: true,  # Default false, set to true if you want a partioned events table
-  use_pg_partman: true
+  partitioned_events: true,
+  use_pg_partman: false
 ]
 
 config :eventstore, TestEventStore, default_config
