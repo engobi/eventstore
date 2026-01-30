@@ -7,7 +7,7 @@ defmodule EventStore.Streams.Stream do
   def append_to_stream(conn, stream_uuid, expected_version, events, opts)
       when length(events) < 1000 do
     {serializer, new_opts} = Keyword.pop(opts, :serializer)
-
+        
     with {:ok, stream} <- stream_info(conn, stream_uuid, expected_version, new_opts),
          :ok <- do_append_to_storage(conn, stream, events, expected_version, serializer, new_opts) do
       :ok

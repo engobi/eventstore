@@ -5,6 +5,10 @@ defmodule EventStore.Subscriptions.SubscriptionAcknowledgementTest do
   alias EventStore.Subscriptions.Subscription
   alias TestEventStore, as: EventStore
 
+  def partitioned? do
+    Application.get_env(:eventstore, EventStore)[:partitioned_events] || false
+  end
+
   describe "subscription acknowledgement" do
     test "should checkpoint after each event by default", %{conn: conn} do
       {:ok, subscription} = subscribe_to_all_streams(buffer_size: 1)
@@ -191,7 +195,7 @@ defmodule EventStore.Subscriptions.SubscriptionAcknowledgementTest do
   defp append_to_stream(stream_uuid, event_count) do
     events = EventFactory.create_events(event_count)
 
-    EventStore.append_to_stream(stream_uuid, 0, events)
+    EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?())
   end
 
   # Subscribe to all streams and wait for the subscription to be subscribed.

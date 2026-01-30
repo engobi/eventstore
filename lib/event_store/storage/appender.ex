@@ -102,15 +102,21 @@ defmodule EventStore.Storage.Appender do
     {schema, opts} = Keyword.pop(opts, :schema)
     {expected_version, opts} = Keyword.pop(opts, :expected_version)
     {created_at, opts} = Keyword.pop(opts, :created_at_override)
+    partitioned = Keyword.get(opts, :partitioned_events, false)
+    {debug, opts} = Keyword.pop(opts, :debug)
 
     statement =
       case expected_version do
         :any_version ->
-          Statements.insert_events_any_version(schema, stream_id, event_count, created_at)
+          Statements.insert_events_any_version(schema, stream_id, event_count, created_at, partitioned)
 
         _expected_version ->
-          Statements.insert_events(schema, stream_id, event_count, created_at)
+          Statements.insert_events(schema, stream_id, event_count, created_at, partitioned)
       end
+
+    if debug do
+      IO.puts("Statement : #{statement}")
+    end
 
     stream_id_or_uuid = stream_id || stream_uuid
 
@@ -118,6 +124,10 @@ defmodule EventStore.Storage.Appender do
       [stream_id_or_uuid, event_count]
       |> Enum.concat(build_insert_parameters(events))
       |> append_if(!stream_id, created_at)
+
+    if debug do
+      IO.inspect(params)
+    end
 
     case Postgrex.query(conn, statement, params, opts) do
       {:ok, %Postgrex.Result{num_rows: 0}} ->

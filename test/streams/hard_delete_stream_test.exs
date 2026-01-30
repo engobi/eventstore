@@ -4,6 +4,10 @@ defmodule EventStore.Streams.HardDeleteStreamTest do
   alias EventStore.{EventFactory, ProcessHelper, RecordedEvent, UUID}
   alias TestEventStore, as: EventStore
 
+  def partitioned? do
+    Application.get_env(:eventstore, EventStore)[:partitioned_events] || false
+  end
+
   describe "hard delete stream when enabled" do
     setup [:enable_hard_deletes, :append_events_to_stream]
 
@@ -59,7 +63,7 @@ defmodule EventStore.Streams.HardDeleteStreamTest do
 
       events = EventFactory.create_events(1)
 
-      assert :ok = EventStore.append_to_stream(stream_uuid, 0, events)
+      assert :ok = EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?())
 
       assert {:ok, [event]} = EventStore.read_stream_forward(stream_uuid)
       assert match?(%RecordedEvent{stream_uuid: ^stream_uuid, stream_version: 1}, event)
@@ -74,8 +78,8 @@ defmodule EventStore.Streams.HardDeleteStreamTest do
       stream2_uuid = UUID.uuid4()
       stream3_uuid = UUID.uuid4()
 
-      :ok = EventStore.append_to_stream(stream2_uuid, 0, EventFactory.create_events(2))
-      :ok = EventStore.append_to_stream(stream3_uuid, 0, EventFactory.create_events(1))
+      :ok = EventStore.append_to_stream(stream2_uuid, 0, EventFactory.create_events(2), partitioned_events: partitioned?())
+      :ok = EventStore.append_to_stream(stream3_uuid, 0, EventFactory.create_events(1), partitioned_events: partitioned?())
 
       :ok = EventStore.delete_stream(stream2_uuid, :any_version, :hard)
 
@@ -120,7 +124,7 @@ defmodule EventStore.Streams.HardDeleteStreamTest do
       stream2_uuid = UUID.uuid4()
       events = EventFactory.create_events(1)
 
-      :ok = EventStore.append_to_stream(stream2_uuid, 0, events)
+      :ok = EventStore.append_to_stream(stream2_uuid, 0, events, partitioned_events: partitioned?())
 
       {:ok, subscription} =
         EventStore.subscribe_to_all_streams("test", self(), start_from: :origin)
@@ -164,7 +168,7 @@ defmodule EventStore.Streams.HardDeleteStreamTest do
       stream2_uuid = UUID.uuid4()
       events = EventFactory.create_events(1)
 
-      :ok = EventStore.append_to_stream(stream2_uuid, 0, events)
+      :ok = EventStore.append_to_stream(stream2_uuid, 0, events, partitioned_events: partitioned?())
 
       assert_receive {:events, [event]}
       assert match?(%RecordedEvent{stream_uuid: ^stream2_uuid, event_number: 4}, event)
@@ -184,7 +188,7 @@ defmodule EventStore.Streams.HardDeleteStreamTest do
       stream2_uuid = UUID.uuid4()
       events = EventFactory.create_events(1)
 
-      :ok = EventStore.append_to_stream(stream2_uuid, 0, events)
+      :ok = EventStore.append_to_stream(stream2_uuid, 0, events, partitioned_events: partitioned?())
 
       assert {:ok, [event]} = EventStore.read_all_streams_forward()
 
@@ -233,7 +237,7 @@ defmodule EventStore.Streams.HardDeleteStreamTest do
     stream_uuid = UUID.uuid4()
     events = EventFactory.create_events(3)
 
-    :ok = EventStore.append_to_stream(stream_uuid, 0, events)
+    :ok = EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?())
 
     [stream_uuid: stream_uuid, events: events]
   end

@@ -11,12 +11,16 @@ defmodule EventStore.MultiEventStoreTest do
     :ok
   end
 
+  def partitioned?(evs) do
+    Application.get_env(:eventstore, evs)[:partitioned_events] || false
+  end
+
   describe "append to multiple event stores" do
     test "should append events to single store" do
       stream_uuid = UUID.uuid4()
       events = EventFactory.create_events(3)
 
-      :ok = TestEventStore.append_to_stream(stream_uuid, 0, events)
+      :ok = TestEventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?(TestEventStore))
 
       assert_read_stream_events(TestEventStore, stream_uuid, events)
       assert_read_all_stream_events(TestEventStore, events)
@@ -28,8 +32,8 @@ defmodule EventStore.MultiEventStoreTest do
       stream_uuid = UUID.uuid4()
       events = EventFactory.create_events(3)
 
-      :ok = TestEventStore.append_to_stream(stream_uuid, 0, events)
-      :ok = SecondEventStore.append_to_stream(stream_uuid, 0, events)
+      :ok = TestEventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?(TestEventStore))
+      :ok = SecondEventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?(SecondEventStore))
 
       assert_read_stream_events(TestEventStore, stream_uuid, events)
       assert_read_stream_events(SecondEventStore, stream_uuid, events)
@@ -46,8 +50,8 @@ defmodule EventStore.MultiEventStoreTest do
 
       :ok = TestEventStore.subscribe(stream_uuid)
 
-      :ok = TestEventStore.append_to_stream(stream_uuid, 0, events)
-      :ok = SecondEventStore.append_to_stream(stream_uuid, 0, events)
+      :ok = TestEventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?(TestEventStore))
+      :ok = SecondEventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?(SecondEventStore))
 
       assert_receive_events(stream_uuid, events)
       refute_receive {:events, _events}
@@ -60,8 +64,8 @@ defmodule EventStore.MultiEventStoreTest do
       :ok = TestEventStore.subscribe(stream_uuid)
       :ok = SecondEventStore.subscribe(stream_uuid)
 
-      :ok = TestEventStore.append_to_stream(stream_uuid, 0, events)
-      :ok = SecondEventStore.append_to_stream(stream_uuid, 0, events)
+      :ok = TestEventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?(TestEventStore))
+      :ok = SecondEventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?(SecondEventStore))
 
       assert_receive_events(stream_uuid, events)
       assert_receive_events(stream_uuid, events)
@@ -83,8 +87,8 @@ defmodule EventStore.MultiEventStoreTest do
       assert_receive {:subscribed, ^subscription1}
       assert_receive {:subscribed, ^subscription2}
 
-      :ok = TestEventStore.append_to_stream(stream_uuid, 0, events)
-      :ok = SecondEventStore.append_to_stream(stream_uuid, 0, events)
+      :ok = TestEventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?(TestEventStore))
+      :ok = SecondEventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?(SecondEventStore))
 
       assert_receive_events(stream_uuid, events)
       assert_receive_events(stream_uuid, events)

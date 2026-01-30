@@ -875,4 +875,5 @@ defmodule EventStore.Subscriptions.ConcurrentSubscriptionTest do
 
     :ok = Subscription.ack(subscription, received_events)
   end
+
 end

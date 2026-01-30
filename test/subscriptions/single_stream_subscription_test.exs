@@ -13,11 +13,15 @@ defmodule EventStore.Subscriptions.SingleSubscriptionFsmTest do
   defp append_events_to_stream(context) do
     %{conn: conn, schema: schema, stream_uuid: stream_uuid} = context
 
+    partitioned = Application.get_env(:eventstore, TestEventStore)[:partitioned_events] || false
+
     recorded_events = EventFactory.create_recorded_events(3, stream_uuid)
 
     {:ok, stream_id} = CreateStream.execute(conn, stream_uuid, schema: schema)
 
-    :ok = Appender.append(conn, stream_id, recorded_events, schema: schema)
+    result = Appender.append(conn, stream_id, recorded_events, schema: schema, partitioned_events: partitioned)
+ 
+    :ok = result 
 
     [
       recorded_events: recorded_events

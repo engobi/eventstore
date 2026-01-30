@@ -118,7 +118,7 @@ defmodule EventStore do
 
   Use a dynamic event store by providing its name as an option to each function:
 
-      :ok = EventStore.append_to_stream(stream_uuid, expected_version, events, name: :eventstore1)
+      :ok = EventStore.append_to_stream(stream_uuid, expected_version, events, name: :eventstore1, partitioned_events: :partitioned)
 
       {:ok, events} = EventStore.read_stream_forward(stream_uuid, 0, 1_000, name: :eventstore1)
 
@@ -183,7 +183,7 @@ defmodule EventStore do
       {:ok, pid} = Postgrex.start_link(config)
 
       Postgrex.transaction(pid, fn conn ->
-        :ok = EventStore.append_to_stream(stream_uuid, expected_version, events, conn: conn)
+        :ok = EventStore.append_to_stream(stream_uuid, expected_version, events, conn: conn, partitioned_events: :partitioned)
       end)
 
   This can also be used with an Ecto `Repo` which is configured to use the
@@ -194,7 +194,7 @@ defmodule EventStore do
 
         conn = Process.get({Ecto.Adapters.SQL, pool})
 
-        :ok = EventStore.append_to_stream(stream_uuid, expected_version, events, conn: conn)
+        :ok = EventStore.append_to_stream(stream_uuid, expected_version, events, conn: conn, partitioned_events: :partitioned)
       end)
 
   ---
@@ -295,6 +295,11 @@ defmodule EventStore do
       end
 
       @accepted_overrides_append_to_stream [:created_at_override]
+
+      def append_to_stream(stream_uuid, expected_version, events) do
+        partitioned = Application.get_env(:eventstore, EventStore)[:partitioned_events] || false
+        append_to_stream(stream_uuid, expected_version, events, partitioned_events: partitioned)
+      end
 
       def append_to_stream(stream_uuid, expected_version, events, opts \\ [])
 

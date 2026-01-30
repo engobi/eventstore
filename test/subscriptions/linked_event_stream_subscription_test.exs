@@ -4,6 +4,10 @@ defmodule EventStore.Subscriptions.LinkedEventSubscriptionFsmTest do
   alias EventStore.{EventFactory, ProcessHelper, UUID}
   alias TestEventStore, as: EventStore
 
+  def partitioned? do
+    Application.get_env(:eventstore, EventStore)[:partitioned_events] || false
+  end
+
   describe "subscription to linked event stream" do
     test "should receive linked events" do
       linked_stream_uuid = UUID.uuid4()
@@ -55,7 +59,7 @@ defmodule EventStore.Subscriptions.LinkedEventSubscriptionFsmTest do
     source_stream_uuid = UUID.uuid4()
     events = EventFactory.create_events(3)
 
-    with :ok <- EventStore.append_to_stream(source_stream_uuid, 0, events),
+    with :ok <- EventStore.append_to_stream(source_stream_uuid, 0, events, partitioned_events: partitioned?()),
          {:ok, read_events} <- EventStore.read_stream_forward(source_stream_uuid, 0, 3),
          :ok <- EventStore.link_to_stream(link_to_stream_uuid, expected_version, read_events) do
       {:ok, source_stream_uuid, events}

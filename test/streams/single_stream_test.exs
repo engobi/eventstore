@@ -7,6 +7,10 @@ defmodule EventStore.Streams.SingleStreamTest do
 
   @subscription_name "test_subscription"
 
+  def partitioned? do
+    Application.get_env(:eventstore, EventStore)[:partitioned_events] || false
+  end
+
   describe "append events to stream" do
     setup [:append_events_to_stream]
 
@@ -62,7 +66,8 @@ defmodule EventStore.Streams.SingleStreamTest do
       assert {:error, :wrong_expected_version} =
                Stream.append_to_stream(conn, stream_uuid, 0, events,
                  schema: schema,
-                 serializer: serializer
+                 serializer: serializer,
+                 partitioned_events: partitioned?()
                )
     end
   end
@@ -194,7 +199,8 @@ defmodule EventStore.Streams.SingleStreamTest do
       :ok =
         Stream.append_to_stream(conn, stream_uuid, :any_version, [event],
           schema: schema,
-          serializer: serializer
+          serializer: serializer,
+          partitioned_events: partitioned?()
         )
 
       assert_receive {:events, [received_event | _]}
@@ -491,7 +497,8 @@ defmodule EventStore.Streams.SingleStreamTest do
       :ok =
         Stream.append_to_stream(conn, stream_uuid, 3, events,
           schema: schema,
-          serializer: serializer
+          serializer: serializer,
+          partitioned_events: partitioned?()
         )
 
       assert_receive {:events, received_events}
@@ -514,7 +521,8 @@ defmodule EventStore.Streams.SingleStreamTest do
     :ok =
       Stream.append_to_stream(conn, stream_uuid, 0, events,
         schema: schema,
-        serializer: serializer
+        serializer: serializer,
+        partitioned_events: partitioned?()
       )
 
     # stream above needed for preventing accidental event_number/stream_version match
@@ -524,7 +532,8 @@ defmodule EventStore.Streams.SingleStreamTest do
     :ok =
       Stream.append_to_stream(conn, stream_uuid, 0, events,
         schema: schema,
-        serializer: serializer
+        serializer: serializer,
+        partitioned_events: partitioned?()
       )
 
     assert {:ok, 3} = Stream.stream_version(conn, stream_uuid, schema: schema)
@@ -539,7 +548,8 @@ defmodule EventStore.Streams.SingleStreamTest do
     :ok =
       Stream.append_to_stream(conn, stream_uuid, 0, events,
         schema: schema,
-        serializer: serializer
+        serializer: serializer,
+        partitioned_events: partitioned?()
       )
 
     [
@@ -557,7 +567,8 @@ defmodule EventStore.Streams.SingleStreamTest do
     :ok =
       Stream.append_to_stream(conn, stream_uuid, 0, events,
         schema: schema,
-        serializer: serializer
+        serializer: serializer,
+        partitioned_events: partitioned?()
       )
 
     [

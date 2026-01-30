@@ -5,6 +5,10 @@ defmodule EventStore.Subscriptions.SubscriptionBackPressureTest do
   alias EventStore.Subscriptions.Subscription
   alias TestEventStore, as: EventStore
 
+  def partitioned? do
+    Application.get_env(:eventstore, EventStore)[:partitioned_events] || false
+  end
+
   describe "subscription back pressure" do
     test "should receive pending events once caught up" do
       {:ok, subscription} = subscribe_to_all_streams(buffer_size: 5, max_size: 5)
@@ -91,7 +95,7 @@ defmodule EventStore.Subscriptions.SubscriptionBackPressureTest do
   defp append_to_stream(stream_uuid, event_count) do
     events = EventFactory.create_events(event_count)
 
-    :ok = EventStore.append_to_stream(stream_uuid, 0, events)
+    :ok = EventStore.append_to_stream(stream_uuid, 0, events, partitioned_events: partitioned?())
   end
 
   # Subscribe to all streams and wait for the subscription to be subscribed.

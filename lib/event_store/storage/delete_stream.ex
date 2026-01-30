@@ -34,8 +34,9 @@ defmodule EventStore.Storage.DeleteStream do
 
   def hard_delete(conn, stream_id, opts) do
     {schema, opts} = Keyword.pop(opts, :schema)
+    partitioned = Keyword.get(opts, :partitioned_events, false)
 
-    query = Statements.hard_delete_stream(schema)
+    query = Statements.hard_delete_stream(schema, partitioned)
 
     case Postgrex.query(conn, query, [stream_id], opts) do
       {:ok, %Postgrex.Result{num_rows: 1, rows: [[^stream_id]]}} ->

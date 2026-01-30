@@ -5,10 +5,14 @@ defmodule EventStore.SubscriptionHelpers do
   alias EventStore.Subscriptions.Subscription
   alias TestEventStore, as: EventStore
 
+  def partitioned? do
+    Application.get_env(:eventstore, EventStore)[:partitioned_events] || false
+  end
+
   def append_to_stream(stream_uuid, event_count, expected_version \\ 0) do
     events = EventFactory.create_events(event_count, expected_version + 1)
 
-    EventStore.append_to_stream(stream_uuid, expected_version, events)
+    EventStore.append_to_stream(stream_uuid, expected_version, events, partitioned_events: partitioned?())
   end
 
   @doc """

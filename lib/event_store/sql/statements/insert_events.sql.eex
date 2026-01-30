@@ -34,6 +34,27 @@ WITH
       ($<%= i*9+3 %>::uuid, $<%= i*9+10 %>::int, $<%= i*9+11 %>::bigint)
     <% end %>
   ),
+  <%= if partitioned do %>
+  <%
+      # if events table is a partioned table then we need to begin by inserting in events_root table
+  %>
+  events_root AS (
+     <%
+       # insert the new events into the events_root table
+       #   using the 1 bind variables from 3 to 9 inclusive
+       #   n.b.: the bind for the event_id is re-generated here
+     %>
+     INSERT INTO "<%= schema %>".events_root
+       (
+         event_id
+       )
+     VALUES
+     <%= for i <- 0..(number_of_events - 1) do %>
+       <%= unless i == 0 do %>,<% end %>
+       ($<%= i*9+3 %>)
+     <% end %>
+  ),
+  <% end %>
   events AS (
     <%
       # insert the new events into the events table

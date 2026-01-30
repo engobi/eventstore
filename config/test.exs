@@ -13,9 +13,13 @@ default_config = [
   password: "postgres",
   database: "eventstore_test",
   hostname: "localhost",
+  schema: "public",
   pool_size: 1,
   serializer: EventStore.JsonSerializer,
-  subscription_retry_interval: 1_000
+  subscription_retry_interval: 1_000,
+  partitioned_events: false,  # Default false, set to true if you want a partioned events table
+  use_pg_partman: false,
+  column_data_type: "jsonb"
 ]
 
 config :eventstore, TestEventStore, default_config

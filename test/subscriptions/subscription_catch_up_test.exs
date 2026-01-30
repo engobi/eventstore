@@ -5,6 +5,10 @@ defmodule EventStore.Subscriptions.SubscriptionCatchUpTest do
   alias EventStore.Subscriptions.Subscription
   alias TestEventStore, as: EventStore
 
+  def partitioned? do
+    Application.get_env(:eventstore, EventStore)[:partitioned_events] || false
+  end
+
   describe "catch-up subscription" do
     test "should receive all existing events" do
       restart_event_store_with_config(enable_hard_deletes: false)
@@ -131,7 +135,7 @@ defmodule EventStore.Subscriptions.SubscriptionCatchUpTest do
   defp append_to_stream(stream_uuid, event_count, expected_version \\ 0) do
     events = EventFactory.create_events(event_count)
 
-    :ok = EventStore.append_to_stream(stream_uuid, expected_version, events)
+    :ok = EventStore.append_to_stream(stream_uuid, expected_version, events, partitioned_events: partitioned?())
   end
 
   # Subscribe to all streams and wait for the subscription to be subscribed.
