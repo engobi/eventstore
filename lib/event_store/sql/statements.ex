@@ -37,7 +37,6 @@ defmodule EventStore.Sql.Statements do
 
     @external_resource file
 
-    #EEx.function_from_file(:def, fun, file, args ++ [:partitioned], engine: EventStore.EExIOListEngine)
     EEx.function_from_file(:def, fun, file, args, engine: EventStore.EExIOListEngine)
   end
 end

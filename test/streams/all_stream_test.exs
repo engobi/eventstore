@@ -323,8 +323,6 @@ defmodule EventStore.Streams.AllStreamTest do
     stream_uuid = UUID.uuid4()
     events = EventFactory.create_events(3)
 
-    #IO.inspect(opts)
-
     partitioned = Application.get_env(:eventstore, TestEventStore)[:partitioned_events] || false
 
     :ok = Stream.append_to_stream(conn, stream_uuid, 0, events, Keyword.put(opts, :partitioned_events, partitioned))
